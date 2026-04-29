@@ -42,5 +42,7 @@ No elimines estos placeholders si quieres que el programa siga funcionando:
 ## Instalar dependencias
 
 ```bash
-pip install reportlab svglib
+sudo apt install inkscape poppler-utils
 ```
+
+El PDF final se arma exportando cada SVG con Inkscape y uniendo las paginas con `pdfunite`.

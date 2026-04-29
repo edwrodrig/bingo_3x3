@@ -22,13 +22,11 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
-
-from reportlab.graphics import renderPDF
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from svglib.svglib import svg2rlg
 
 
 RANGES = [
@@ -135,30 +133,37 @@ def write_svgs(cards: List[Dict], template_path: Path, out_dir: Path) -> List[Pa
 
 
 def write_pdf(svg_paths: List[Path], pdf_path: Path) -> None:
-    c = canvas.Canvas(str(pdf_path), pagesize=letter)
-    page_width, page_height = letter
+    inkscape = shutil.which("inkscape")
+    pdfunite = shutil.which("pdfunite")
 
-    for svg_path in svg_paths:
-        drawing = svg2rlg(str(svg_path))
-        if drawing is None:
-            raise RuntimeError(f"No se pudo leer SVG: {svg_path}")
+    if not inkscape:
+        raise RuntimeError("No se encontro 'inkscape' en el sistema. Instala Inkscape para exportar el PDF.")
+    if not pdfunite:
+        raise RuntimeError("No se encontro 'pdfunite' en el sistema. Instala poppler-utils para unir los PDFs.")
 
-        # La plantilla esta en 612 x 792 puntos, equivalente a carta.
-        scale_x = page_width / drawing.width
-        scale_y = page_height / drawing.height
-        scale = min(scale_x, scale_y)
+    with tempfile.TemporaryDirectory(prefix="bingo_pdf_") as tmp_dir_name:
+        tmp_dir = Path(tmp_dir_name)
+        page_pdfs = []
 
-        drawing.width *= scale
-        drawing.height *= scale
-        drawing.scale(scale, scale)
+        for index, svg_path in enumerate(svg_paths, start=1):
+            page_pdf = tmp_dir / f"page_{index:03d}.pdf"
+            command = [
+                inkscape,
+                str(svg_path),
+                "--export-type=pdf",
+                f"--export-filename={page_pdf}",
+            ]
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"No se pudo exportar SVG con Inkscape: {svg_path}\n{result.stderr.strip()}"
+                )
+            page_pdfs.append(page_pdf)
 
-        x = (page_width - drawing.width) / 2
-        y = (page_height - drawing.height) / 2
-
-        renderPDF.draw(drawing, c, x, y)
-        c.showPage()
-
-    c.save()
+        merge_command = [pdfunite, *(str(page_pdf) for page_pdf in page_pdfs), str(pdf_path)]
+        result = subprocess.run(merge_command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"No se pudo unir el PDF final.\n{result.stderr.strip()}")
 
 
 def parse_args() -> argparse.Namespace:

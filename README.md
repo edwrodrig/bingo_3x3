@@ -28,6 +28,19 @@ Esto genera:
 python bingo_generator.py --data salida_bingo/cartones.json --out salida_regenerada
 ```
 
+## Generar fichas del sorteo
+
+```bash
+python sorteo_generator.py --out salida_sorteo
+```
+
+Esto genera:
+
+- `salida_sorteo/svgs/`: un SVG por hoja A4
+- `salida_sorteo/fichas_sorteo_a4.pdf`: PDF con las 30 fichas recortables
+
+Las fichas del sorteo se generan de forma independiente a los cartones, en 3 hojas A4 con piezas grandes y bordes rectos para facilitar el corte.
+
 ## Modificar diseño
 
 Edita `bingo_template.svg`.

@@ -1,0 +1,14 @@
+{
+  "name": "bingo-3x3-web",
+  "private": true,
+  "scripts": {
+    "build": "esbuild web/app.js --bundle --minify --format=esm --outfile=dist/app.js && cp web/index.html web/style.css dist/",
+    "test": "go test ./... && python3 -m unittest discover -s tests"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0"
+  }
+}

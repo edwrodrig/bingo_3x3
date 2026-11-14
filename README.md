@@ -1,4 +1,55 @@
-# Generador de cartones de bingo 3x3
+# Bingo Fantástico · juego y generador de cartones 3x3
+
+La aplicación web separa `/tv`, `/remote/` y `/library/`. La TV muestra la última
+bolita, el tablero completo, datos curiosos y animaciones. El teléfono dirige
+un sorteo aleatorio sin repetición y puede deshacer, reiniciar, cambiar de tema
+o lanzar manualmente «¡Bingo!» y «Sigue jugando». La aplicación no registra ni
+comprueba los cartones que usan los jugadores.
+
+`/library/` genera lotes reproducibles con el generador Python de este mismo
+repositorio. Previsualiza los primeros 12 cartones y descarga un PDF vectorial
+en blanco y negro, tamaño carta, con 3 columnas × 4 filas. Cada lote conserva
+una semilla numérica en el nombre del PDF; la misma semilla y cantidad producen
+los mismos cartones. El generador CLI original y su plantilla SVG siguen
+disponibles como se explica más abajo.
+
+## Ejecutar la aplicación localmente
+
+Requiere Go 1.26+, Node 20+ y Python 3.10+. No se necesitan Inkscape ni
+`pdfunite` para el PDF compacto de la aplicación.
+
+```bash
+npm ci
+npm run build
+mkdir -p .local/data
+python3 -c 'import os,pathlib,secrets; p=pathlib.Path(".local/bingo-owner-password"); p.write_text(secrets.token_urlsafe(32)+"\n") if not p.exists() else None; os.chmod(p,0o600)'
+BINGO_DATA_DIR=.local/data go run ./server owner bootstrap < .local/bingo-owner-password
+BINGO_DATA_DIR=.local/data go run ./server
+```
+
+Abre `http://127.0.0.1:3012/tv` en la pantalla y
+`http://127.0.0.1:3012/remote/` en el teléfono. Ambos necesitan acceder al
+mismo servidor. Inicia sesión en el teléfono con la contraseña guardada en
+`.local/bingo-owner-password`, escanea el QR o escribe el código de la TV.
+Los datos y la contraseña local están fuera de Git. `npm test` comprueba el
+sorteo y el PDF; `npm run build` genera los archivos web.
+
+## Producción
+
+La aplicación está publicada en `https://bingo.labo86.cl`, aislada de Dance
+Trainer en `dti_Server`. `bash scripts/deploy-dti.sh` construye, prueba, respalda
+datos existentes y publica Go detrás de nginx/TLS. En la primera instalación
+crea `.local/bingo-owner-password` con permisos `600` y usa esa contraseña para
+iniciar la cuenta del control. Consulta [despliegue](docs/DEPLOYMENT.md).
+
+## Ampliaciones previstas
+
+El sorteo y los cartones actuales usan el contrato `bingo_3x3_v1`: B 1–10,
+I 11–20, N 21–30. Las pantallas y el PDF consumen los datos del lote; las
+reglas viven en el generador. Para añadir 4×4, 5×5, sílabas o dibujos hará
+falta versionar un formato de cartón nuevo y añadir su presentación e impresión.
+Los temas de TV son independientes de las reglas y se pueden ampliar con
+nuevos datos e ilustraciones.
 
 ## Reglas
 

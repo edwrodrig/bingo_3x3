@@ -1,1 +1,6 @@
-salida*
+node_modules/
+dist/
+.local/
+__pycache__/
+salida_*/
+*.pdf

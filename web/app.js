@@ -80,6 +80,7 @@ function h(tag, attrs = {}, ...children) {
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") el.className = v;
     else if (k === "text") el.textContent = v;
+    else if (k === "disabled") el.disabled = Boolean(v);
     else if (k.startsWith("on"))
       el.addEventListener(k.slice(2).toLowerCase(), v);
     else el.setAttribute(k, v);
@@ -585,6 +586,7 @@ async function remote() {
       try {
         game = await post("/api/remote/action", { type, value });
         render();
+        if (type === "reset") toast("Partida nueva. Ya puedes sacar la primera bolita.");
       } catch (ex) {
         toast(ex.message, true);
       }
@@ -686,7 +688,7 @@ async function remote() {
         {
           class: "draw-button",
           onclick: () => act("draw"),
-          disabled: game.drawn.length === 30 ? "" : "",
+          disabled: game.drawn.length === 30,
         },
         h("span", {}, "✦"),
         game.drawn.length === 30 ? "SALIERON TODAS" : "SACAR BOLITA",
@@ -697,7 +699,7 @@ async function remote() {
         {
           class: "button quiet",
           onclick: () => act("undo"),
-          disabled: game.drawn.length === 0 ? "" : "",
+          disabled: game.drawn.length === 0,
         },
         "↶ Deshacer última",
       );

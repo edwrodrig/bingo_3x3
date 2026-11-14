@@ -1,13 +1,15 @@
 # Bingo Fantástico · juego y generador de cartones 3x3
 
 La aplicación web separa `/tv`, `/remote/` y `/library/`. La TV muestra la última
-bolita, el tablero completo, datos curiosos y animaciones. El teléfono dirige
-un sorteo aleatorio sin repetición y puede deshacer, reiniciar, cambiar de tema
+bolita, el tablero completo, datos curiosos y animaciones. La TV es pública.
+El teléfono inicia sesión para dirigir un sorteo aleatorio sin repetición y
+puede deshacer, reiniciar, cambiar de tema
 o lanzar manualmente «¡Bingo!» y «Sigue jugando». La aplicación no registra ni
 comprueba los cartones que usan los jugadores.
 
-`/library/` genera lotes reproducibles con el generador Python de este mismo
-repositorio. Previsualiza los primeros 12 cartones y descarga un PDF vectorial
+`/library/` se puede abrir sin cuenta, pero requiere inicio de sesión para
+generar lotes porque el generador Python se ejecuta en el servidor. Previsualiza
+los primeros 12 cartones y descarga un PDF vectorial
 en blanco y negro, tamaño carta, con 3 columnas × 4 filas. Cada lote conserva
 una semilla numérica en el nombre del PDF; la misma semilla y cantidad producen
 los mismos cartones. El generador CLI original y su plantilla SVG siguen
@@ -23,14 +25,19 @@ npm ci
 npm run build
 mkdir -p .local/data
 python3 -c 'import os,pathlib,secrets; p=pathlib.Path(".local/bingo-owner-password"); p.write_text(secrets.token_urlsafe(32)+"\n") if not p.exists() else None; os.chmod(p,0o600)'
-BINGO_DATA_DIR=.local/data go run ./server owner bootstrap < .local/bingo-owner-password
+BINGO_DATA_DIR=.local/data go run ./server owner bootstrap bingo < .local/bingo-owner-password
 BINGO_DATA_DIR=.local/data go run ./server
 ```
 
 Abre `http://127.0.0.1:3012/tv` en la pantalla y
 `http://127.0.0.1:3012/remote/` en el teléfono. Ambos necesitan acceder al
 mismo servidor. Inicia sesión en el teléfono con la contraseña guardada en
-`.local/bingo-owner-password`, escanea el QR o escribe el código de la TV.
+`.local/bingo-owner-password` y el usuario `bingo`, escanea el QR o escribe el código de la TV.
+El administrador puede crear otras cuentas, desactivarlas y cambiar sus claves
+desde «Gestionar usuarios» en el control. Cada cuenta vincula sus propias TV;
+los cartones se pueden generar con cualquier cuenta activa. Bingo no comparte
+usuarios ni contraseñas con Dance Trainer. La primera versión de Bingo migra
+automáticamente su contraseña única al usuario `bingo`.
 Los datos y la contraseña local están fuera de Git. `npm test` comprueba el
 sorteo y el PDF; `npm run build` genera los archivos web.
 
@@ -40,7 +47,7 @@ La aplicación está publicada en `https://bingo.labo86.cl`, aislada de Dance
 Trainer en `dti_Server`. `bash scripts/deploy-dti.sh` construye, prueba, respalda
 datos existentes y publica Go detrás de nginx/TLS. En la primera instalación
 crea `.local/bingo-owner-password` con permisos `600` y usa esa contraseña para
-iniciar la cuenta del control. Consulta [despliegue](docs/DEPLOYMENT.md).
+iniciar la cuenta `bingo` del control. Consulta [despliegue](docs/DEPLOYMENT.md).
 
 ## Ampliaciones previstas
 

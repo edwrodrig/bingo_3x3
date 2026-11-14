@@ -44,7 +44,7 @@ if ssh_bingo 'test -f /srv/bingo/data/games.json'; then
   ssh_bingo 'tar -C /srv/bingo -czf - data' > "$BACKUP"
   chmod 600 "$BACKUP"
 fi
-if ! ssh_bingo 'test -f /srv/bingo/data/owner.hash'; then
+if ! ssh_bingo 'test -f /srv/bingo/data/users.json || test -f /srv/bingo/data/owner.hash'; then
   PASSWORD_FILE="$ROOT/.local/bingo-owner-password"
   if [[ ! -f "$PASSWORD_FILE" ]]; then
     python3 - "$PASSWORD_FILE" <<'PY'
@@ -56,7 +56,7 @@ with os.fdopen(fd, 'w') as f:
 PY
   fi
   [[ "$(stat -f %Lp "$PASSWORD_FILE" 2>/dev/null || stat -c %a "$PASSWORD_FILE")" == 600 ]] || { echo 'La contraseña local debe tener permisos 600' >&2; exit 1; }
-  ssh "${SSH_OPTS[@]}" "$REMOTE" "BINGO_DATA_DIR=/srv/bingo/data /srv/bingo/releases/$RELEASE/bingo-server owner bootstrap" < "$PASSWORD_FILE"
+  ssh "${SSH_OPTS[@]}" "$REMOTE" "BINGO_DATA_DIR=/srv/bingo/data /srv/bingo/releases/$RELEASE/bingo-server owner bootstrap bingo" < "$PASSWORD_FILE"
 fi
 
 ssh_bingo "bash -s -- '$RELEASE' '$USER' '$PORT' '$DOMAIN'" <<'REMOTE_SCRIPT'

@@ -12,13 +12,13 @@ import (
 )
 
 func TestDrawUndoResetAndAnimation(t *testing.T) {
-	a := &app{dataDir: t.TempDir(), games: map[string]*game{"tv": {ID: "tv", Paired: true, Drawn: []int{}, Theme: "space"}}, sessions: map[string]time.Time{"owner": time.Now().Add(time.Hour)}, watchers: map[string]map[chan []byte]bool{}}
+	a := &app{dataDir: t.TempDir(), games: map[string]*game{"tv": {ID: "tv", OwnerID: "u1", Paired: true, Drawn: []int{}, Theme: "space"}}, users: map[string]*account{"bingo": {ID: "u1", Username: "bingo", Role: "owner", Active: true}}, sessions: map[string]session{"owner": {UserID: "u1", Expires: time.Now().Add(time.Hour)}}, watchers: map[string]map[chan []byte]bool{}}
 	call := func(kind, value string) (int, game) {
 		body, _ := json.Marshal(map[string]string{"type": kind, "value": value})
 		r := httptest.NewRequest(http.MethodPost, "http://bingo.test/api/remote/action", bytes.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("Origin", "http://bingo.test")
-		r.AddCookie(&http.Cookie{Name: "bingo_owner", Value: "owner"})
+		r.AddCookie(&http.Cookie{Name: "bingo_user", Value: "owner"})
 		r.AddCookie(&http.Cookie{Name: "bingo_remote_tv", Value: "tv"})
 		w := httptest.NewRecorder()
 		a.action(w, r)

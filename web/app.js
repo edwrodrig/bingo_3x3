@@ -348,13 +348,19 @@ async function tv() {
 
 async function login(next) {
   const me = await api("/api/auth/me");
-  if (me.authenticated) return next();
+  if (me.authenticated) return next(me.user);
   root.className = "app-page";
   const err = h("p", { class: "form-error" });
-  const input = h("input", {
+  const username = h("input", {
+    type: "text",
+    autocomplete: "username",
+    placeholder: "Usuario",
+    required: "",
+  });
+  const password = h("input", {
     type: "password",
     autocomplete: "current-password",
-    placeholder: "Contraseña del control",
+    placeholder: "Contraseña",
     required: "",
   });
   const form = h(
@@ -365,8 +371,11 @@ async function login(next) {
         e.preventDefault();
         err.textContent = "";
         try {
-          await post("/api/auth/login", { password: input.value });
-          await next();
+          const result = await post("/api/auth/login", {
+            username: username.value,
+            password: password.value,
+          });
+          await next(result.user);
         } catch (ex) {
           errorText(err, ex);
         }
@@ -377,9 +386,10 @@ async function login(next) {
     h(
       "p",
       {},
-      "Solo la persona que dirige la partida puede sacar bolitas y crear cartones.",
+      "Entra con tu cuenta de Bingo para dirigir la partida o generar cartones.",
     ),
-    input,
+    username,
+    password,
     h("button", { class: "button primary", type: "submit" }, "Entrar"),
     err,
   );
@@ -387,23 +397,190 @@ async function login(next) {
     banner("¡Vamos a jugar!", "El control y los cartones viven aquí."),
     form,
   );
-  input.focus();
+  username.focus();
 }
 
 async function remote() {
-  await login(async () => {
+  await login(async (user) => {
     root.className = "app-page";
     let game = null,
       source = null;
     const codeFromURL = new URLSearchParams(location.search).get("code") || "";
     const main = h("main", { class: "app-main" });
+    const accountBar = h(
+      "div",
+      { class: "account-bar" },
+      h("span", { text: `👤 ${user.username}` }),
+      ...(user.role === "owner"
+        ? [
+            h(
+              "button",
+              { class: "button quiet", onclick: () => showUsers() },
+              "Gestionar usuarios",
+            ),
+          ]
+        : []),
+      h(
+        "button",
+        {
+          class: "button quiet",
+          onclick: async () => {
+            await post("/api/auth/logout", {});
+            location.reload();
+          },
+        },
+        "Salir",
+      ),
+    );
+    const usersPanel = h("section", { class: "users-panel hidden" });
     root.replaceChildren(
       banner(
         "Control de bingo",
         "Tú diriges la partida; la TV muestra la magia.",
       ),
+      accountBar,
       main,
+      usersPanel,
     );
+    async function showUsers() {
+      if (!usersPanel.classList.contains("hidden")) {
+        usersPanel.classList.add("hidden");
+        return;
+      }
+      usersPanel.classList.remove("hidden");
+      await refreshUsers();
+    }
+    async function refreshUsers() {
+      try {
+        const users = await api("/api/users");
+        const newName = h("input", {
+          placeholder: "Nuevo usuario",
+          autocomplete: "off",
+          required: "",
+          minlength: "3",
+        });
+        const newPassword = h("input", {
+          type: "password",
+          placeholder: "Contraseña inicial (12+ caracteres)",
+          autocomplete: "new-password",
+          required: "",
+          minlength: "12",
+        });
+        const note = h("p", { class: "form-error" });
+        const create = h(
+          "form",
+          {
+            class: "user-create",
+            onsubmit: async (e) => {
+              e.preventDefault();
+              note.textContent = "";
+              try {
+                await post("/api/users", {
+                  username: newName.value,
+                  password: newPassword.value,
+                });
+                toast("Usuario creado.");
+                await refreshUsers();
+              } catch (ex) {
+                errorText(note, ex);
+              }
+            },
+          },
+          newName,
+          newPassword,
+          h(
+            "button",
+            { class: "button primary", type: "submit" },
+            "Crear usuario",
+          ),
+          note,
+        );
+        const rows = users.map((u) => {
+          const resetInput = h("input", {
+            type: "password",
+            placeholder: "Nueva contraseña (12+)",
+            autocomplete: "new-password",
+            minlength: "12",
+          });
+          return h(
+            "div",
+            { class: "user-row" },
+            h(
+              "div",
+              {},
+              h("strong", { text: u.username }),
+              h("small", {
+                text: ` · ${u.role === "owner" ? "Administrador" : u.active ? "Activo" : "Desactivado"}`,
+              }),
+            ),
+            h(
+              "div",
+              { class: "user-actions" },
+              resetInput,
+              h(
+                "button",
+                {
+                  class: "button quiet",
+                  onclick: async () => {
+                    try {
+                      await api(
+                        `/api/users/${encodeURIComponent(u.username)}/password`,
+                        {
+                          method: "PUT",
+                          body: JSON.stringify({ password: resetInput.value }),
+                        },
+                      );
+                      resetInput.value = "";
+                      toast("Contraseña actualizada.");
+                      if (u.username === user.username) location.reload();
+                    } catch (ex) {
+                      toast(ex.message, true);
+                    }
+                  },
+                },
+                "Cambiar clave",
+              ),
+              ...(u.role === "owner"
+                ? []
+                : [
+                    h(
+                      "button",
+                      {
+                        class: "button quiet",
+                        onclick: async () => {
+                          try {
+                            await api(
+                              `/api/users/${encodeURIComponent(u.username)}`,
+                              {
+                                method: "PATCH",
+                                body: JSON.stringify({ active: !u.active }),
+                              },
+                            );
+                            await refreshUsers();
+                          } catch (ex) {
+                            toast(ex.message, true);
+                          }
+                        },
+                      },
+                      u.active ? "Desactivar" : "Activar",
+                    ),
+                  ]),
+            ),
+          );
+        });
+        usersPanel.replaceChildren(
+          h("div", { class: "section-kicker" }, "CUENTAS DE BINGO"),
+          h("h2", {}, "Usuarios del control"),
+          h("p", {}, "Cada cuenta puede vincular y manejar sus propias TV."),
+          create,
+          h("div", { class: "user-list" }, ...rows),
+        );
+      } catch (ex) {
+        usersPanel.replaceChildren(
+          h("p", { class: "form-error", text: ex.message }),
+        );
+      }
+    }
     async function act(type, value = "") {
       try {
         game = await post("/api/remote/action", { type, value });
@@ -657,124 +834,147 @@ async function remote() {
 }
 
 async function library() {
-  await login(async () => {
-    root.className = "app-page";
-    const main = h("main", { class: "app-main" });
-    root.replaceChildren(
-      banner(
-        "Biblioteca de cartones",
-        "Genera, revisa e imprime un lote nuevo.",
-      ),
-      main,
-    );
-    let seed = Math.floor(Math.random() * 2 ** 32),
-      count = 12,
-      cards = [];
-    const countInput = h("input", {
-      type: "number",
-      min: "1",
-      max: "240",
-      value: "12",
-    });
-    const feedback = h("p", { class: "form-error" });
-    const preview = h("div", { class: "cards-preview" });
-    const seedText = h("code", { text: String(seed) });
-    const download = h(
-      "a",
-      { class: "button primary disabled", href: "#", download: "" },
-      "Descargar PDF carta ↓",
-    );
-    function cardNode(card) {
-      return h(
-        "div",
-        { class: "preview-card" },
-        h("div", {
-          class: "preview-title",
-          text: `BINGO #${String(card.id).padStart(3, "0")}`,
-        }),
-        h(
-          "div",
-          { class: "preview-grid" },
-          ...["B", "I", "N", ...card.grid.flat()].map((v) =>
-            h("span", { text: v }),
+  const me = await api("/api/auth/me");
+  root.className = "app-page";
+  const main = h("main", { class: "app-main" });
+  root.replaceChildren(
+    banner("Biblioteca de cartones", "Genera, revisa e imprime un lote nuevo."),
+    ...(me.authenticated
+      ? [
+          h(
+            "div",
+            { class: "account-bar" },
+            h("span", { text: `👤 ${me.user.username}` }),
+            h(
+              "button",
+              {
+                class: "button quiet",
+                onclick: async () => {
+                  await post("/api/auth/logout", {});
+                  await library();
+                },
+              },
+              "Salir",
+            ),
           ),
-        ),
-      );
-    }
-    async function generate() {
-      count = Number(countInput.value);
-      if (!Number.isInteger(count) || count < 1 || count > 240) {
-        feedback.textContent = "Elige entre 1 y 240 cartones.";
-        return;
-      }
-      seed = Math.floor(Math.random() * 2 ** 32);
-      seedText.textContent = String(seed);
-      feedback.textContent = "Generando lote…";
-      download.classList.add("disabled");
-      try {
-        const data = await api(
-          `/api/cards/preview?count=${count}&seed=${seed}`,
-        );
-        cards = data.cards;
-        preview.replaceChildren(...cards.slice(0, 12).map(cardNode));
-        feedback.textContent = `${count} cartones únicos · ${Math.ceil(count / 12)} hoja${count > 12 ? "s" : ""} carta · vista previa de los primeros ${Math.min(count, 12)}.`;
-        download.href = `/api/cards/pdf?count=${count}&seed=${seed}`;
-        download.classList.remove("disabled");
-      } catch (ex) {
-        errorText(feedback, ex);
-      }
-    }
-    main.replaceChildren(
+        ]
+      : []),
+    main,
+  );
+  let seed = Math.floor(Math.random() * 2 ** 32),
+    count = 12,
+    cards = [];
+  const countInput = h("input", {
+    type: "number",
+    min: "1",
+    max: "240",
+    value: "12",
+  });
+  const feedback = h("p", { class: "form-error" });
+  const preview = h("div", { class: "cards-preview" });
+  const seedText = h("code", { text: String(seed) });
+  const download = h(
+    "a",
+    { class: "button primary disabled", href: "#", download: "" },
+    "Descargar PDF carta ↓",
+  );
+  function cardNode(card) {
+    return h(
+      "div",
+      { class: "preview-card" },
+      h("div", {
+        class: "preview-title",
+        text: `BINGO #${String(card.id).padStart(3, "0")}`,
+      }),
       h(
         "div",
-        { class: "library-layout" },
+        { class: "preview-grid" },
+        ...["B", "I", "N", ...card.grid.flat()].map((v) =>
+          h("span", { text: v }),
+        ),
+      ),
+    );
+  }
+  async function generate() {
+    if (!me.authenticated) {
+      await login(async () => {
+        await library();
+      });
+      return;
+    }
+    count = Number(countInput.value);
+    if (!Number.isInteger(count) || count < 1 || count > 240) {
+      feedback.textContent = "Elige entre 1 y 240 cartones.";
+      return;
+    }
+    seed = Math.floor(Math.random() * 2 ** 32);
+    seedText.textContent = String(seed);
+    feedback.textContent = "Generando lote…";
+    download.classList.add("disabled");
+    try {
+      const data = await api(`/api/cards/preview?count=${count}&seed=${seed}`);
+      cards = data.cards;
+      preview.replaceChildren(...cards.slice(0, 12).map(cardNode));
+      feedback.textContent = `${count} cartones únicos · ${Math.ceil(count / 12)} hoja${count > 12 ? "s" : ""} carta · vista previa de los primeros ${Math.min(count, 12)}.`;
+      download.href = `/api/cards/pdf?count=${count}&seed=${seed}`;
+      download.classList.remove("disabled");
+    } catch (ex) {
+      errorText(feedback, ex);
+    }
+  }
+  main.replaceChildren(
+    h(
+      "div",
+      { class: "library-layout" },
+      h(
+        "section",
+        { class: "library-settings" },
+        h("div", { class: "section-kicker" }, "01 / PREPARAR LOTE"),
+        h("h2", {}, "Cartones 3 × 3"),
         h(
-          "section",
-          { class: "library-settings" },
-          h("div", { class: "section-kicker" }, "01 / PREPARAR LOTE"),
-          h("h2", {}, "Cartones 3 × 3"),
+          "p",
+          {},
+          "Números del 1 al 30 en columnas B, I y N. Cada cartón es distinto dentro del lote.",
+        ),
+        h("label", {}, "Cantidad de cartones", countInput),
+        h(
+          "button",
+          { class: "button secondary", onclick: generate },
+          "✦ Generar otro lote",
+        ),
+        h(
+          "div",
+          { class: "print-info" },
+          h("b", {}, "Impresión económica"),
           h(
             "p",
             {},
-            "Números del 1 al 30 en columnas B, I y N. Cada cartón es distinto dentro del lote.",
+            "12 por hoja carta · 3 columnas × 4 filas · solo líneas y números negros · márgenes de corte.",
           ),
-          h("label", {}, "Cantidad de cartones", countInput),
-          h(
-            "button",
-            { class: "button secondary", onclick: generate },
-            "✦ Generar otro lote",
-          ),
-          h(
-            "div",
-            { class: "print-info" },
-            h("b", {}, "Impresión económica"),
-            h(
-              "p",
-              {},
-              "12 por hoja carta · 3 columnas × 4 filas · solo líneas y números negros · márgenes de corte.",
-            ),
-          ),
-          h("div", { class: "batch-seed" }, "Semilla del lote: ", seedText),
-          download,
-          feedback,
         ),
-        h(
-          "section",
-          { class: "library-preview" },
-          h("div", { class: "section-kicker" }, "02 / VISTA PREVIA"),
-          h("h2", {}, "Así se verán"),
-          preview,
-        ),
+        h("div", { class: "batch-seed" }, "Semilla del lote: ", seedText),
+        download,
+        feedback,
       ),
       h(
-        "nav",
-        { class: "bottom-nav" },
-        h("a", { href: "/remote/" }, "🎮 Ir al control"),
-        h("a", { href: "/tv" }, "📺 Abrir TV"),
+        "section",
+        { class: "library-preview" },
+        h("div", { class: "section-kicker" }, "02 / VISTA PREVIA"),
+        h("h2", {}, "Así se verán"),
+        preview,
       ),
-    );
-    await generate();
-  });
+    ),
+    h(
+      "nav",
+      { class: "bottom-nav" },
+      h("a", { href: "/remote/" }, "🎮 Ir al control"),
+      h("a", { href: "/tv" }, "📺 Abrir TV"),
+    ),
+  );
+  if (me.authenticated) await generate();
+  else
+    feedback.textContent =
+      "La biblioteca es pública. Inicia sesión para generar el lote en el servidor.";
 }
 
 const path = location.pathname.replace(/\/$/, "");

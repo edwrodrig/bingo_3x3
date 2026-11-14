@@ -896,6 +896,83 @@ p {
   }
 }
 
+.account-bar {
+  max-width: 1160px;
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #d9def2;
+  font-weight: 700;
+}
+.account-bar .button {
+  min-height: 38px;
+  padding: 0.5rem 0.85rem;
+}
+.users-panel {
+  max-width: 1160px;
+  margin: 0 auto 40px;
+  padding: 26px;
+  background: #1b2245;
+  border: 1px solid #39446b;
+  border-radius: 24px;
+}
+.users-panel.hidden {
+  display: none;
+}
+.users-panel p {
+  color: #b9c0dc;
+}
+.user-create,
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.user-create {
+  padding: 16px 0;
+  border-bottom: 1px solid #ffffff25;
+}
+.user-create input,
+.user-actions input {
+  flex: 1 1 180px;
+  min-width: 0;
+  background: #101630;
+  border: 1px solid #596184;
+  border-radius: 12px;
+  color: #fff;
+  padding: 0.8rem 1rem;
+}
+.user-create .form-error {
+  width: 100%;
+  margin: 0;
+}
+.user-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #121a37;
+  padding: 12px;
+  border-radius: 12px;
+}
+.user-row small {
+  color: #aeb9d8;
+}
+.user-actions {
+  flex: 1 1 450px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 800px) {
   .page-head {
     align-items: start;

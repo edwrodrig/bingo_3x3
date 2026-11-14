@@ -12,14 +12,15 @@ El script requiere acceso SSH `edwin@152.74.160.41` con `sudo -n` y verificació
 estricta de host. Se puede indicar `BINGO_SSH_KEY` o `BINGO_SSH_PUBKEY` si el
 agente SSH no selecciona la clave adecuada. También admite `BINGO_CERT_EMAIL`.
 Antes de activar un nuevo release, guarda un respaldo de `/srv/bingo/data` en
-`.local/backups/`. Conserva datos y el hash de la cuenta en `/srv/bingo/data`.
+`.local/backups/`. Conserva los juegos y las cuentas en `/srv/bingo/data`.
 El release contiene el binario Go, la web compilada y el generador Python.
 
-La contraseña inicial del control queda solo en
-`.local/bingo-owner-password`, ignorada por Git. El servidor conserva su hash
-en `/srv/bingo/data/owner.hash`. No copies la contraseña al repositorio. Si se
-pierde el archivo local, restablécela por un procedimiento manual antes de
-eliminar el hash de producción; un despliegue posterior no la sobrescribe.
+La contraseña inicial del administrador `bingo` queda solo en
+`.local/bingo-owner-password`, ignorada por Git. El servidor conserva los
+hashes de contraseña en `/srv/bingo/data/users.json`. La migración de la versión
+anterior lee `/srv/bingo/data/owner.hash` una vez y conserva ese archivo como
+respaldo, sin usarlo para autenticar. El administrador gestiona cuentas desde
+el control. No copies las contraseñas ni los datos de producción a Git.
 
 Comprueba `https://bingo.labo86.cl/api/health`, abre `/tv`, vincula desde
 `/remote/` y genera un PDF en `/library/`. Para diagnosticar el servicio:

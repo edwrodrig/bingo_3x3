@@ -13,11 +13,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,9 +35,28 @@ type game struct {
 	CodeExpires time.Time `json:"codeExpires,omitempty"`
 	Paired      bool      `json:"paired"`
 	Drawn       []int     `json:"drawn"`
+	Mode        string    `json:"mode"`
 	Theme       string    `json:"theme"`
 	Animation   animation `json:"animation"`
 	Revision    int64     `json:"revision"`
+}
+
+func validMode(mode string) bool { return mode == "3x3" || mode == "4x4" || mode == "5x5" }
+func gameMode(g *game) string {
+	if validMode(g.Mode) {
+		return g.Mode
+	}
+	return "3x3" // Partidas guardadas antes de incorporar modalidades.
+}
+func ballCount(mode string) int {
+	switch mode {
+	case "4x4":
+		return 60
+	case "5x5":
+		return 75
+	default:
+		return 30
+	}
 }
 
 type account struct {
@@ -74,7 +91,6 @@ type app struct {
 	mu       sync.Mutex
 	dataDir  string
 	distDir  string
-	rootDir  string
 	secure   bool
 	games    map[string]*game
 	users    map[string]*account
@@ -192,7 +208,7 @@ func main() {
 	if err := os.MkdirAll(data, 0700); err != nil {
 		log.Fatal(err)
 	}
-	a := &app{dataDir: data, distDir: env("BINGO_DIST_DIR", "dist"), rootDir: env("BINGO_ROOT_DIR", "."), secure: os.Getenv("BINGO_SECURE_COOKIES") == "1", games: map[string]*game{}, users: map[string]*account{}, sessions: map[string]session{}, watchers: map[string]map[chan []byte]bool{}, failed: map[string][]time.Time{}}
+	a := &app{dataDir: data, distDir: env("BINGO_DIST_DIR", "dist"), secure: os.Getenv("BINGO_SECURE_COOKIES") == "1", games: map[string]*game{}, users: map[string]*account{}, sessions: map[string]session{}, watchers: map[string]map[chan []byte]bool{}, failed: map[string][]time.Time{}}
 	if err := a.loadUsers(); err != nil {
 		log.Fatal(err)
 	}
@@ -203,6 +219,9 @@ func main() {
 	}
 	// La primera versión tenía una sola cuenta y ningún dueño en cada TV.
 	for _, g := range a.games {
+		if !validMode(g.Mode) {
+			g.Mode = "3x3"
+		}
 		if g.Paired && g.OwnerID == "" {
 			if owner := a.ownerLocked(); owner != nil {
 				g.OwnerID = owner.ID
@@ -229,8 +248,6 @@ func main() {
 	mux.HandleFunc("POST /api/remote/select", a.remoteSelect)
 	mux.HandleFunc("GET /api/remote/events", a.remoteEvents)
 	mux.HandleFunc("POST /api/remote/action", a.action)
-	mux.HandleFunc("GET /api/cards/preview", a.cards)
-	mux.HandleFunc("GET /api/cards/pdf", a.cards)
 	mux.HandleFunc("/", a.static)
 	bind := env("BINGO_BIND", "127.0.0.1")
 	port := env("PORT", "3012")
@@ -300,10 +317,6 @@ func (a *app) requireOwner(w http.ResponseWriter, r *http.Request) (account, boo
 		return u, false
 	}
 	return u, true
-}
-func (a *app) require(w http.ResponseWriter, r *http.Request) bool {
-	_, ok := a.requireUser(w, r)
-	return ok
 }
 func (a *app) health(w http.ResponseWriter, _ *http.Request) {
 	jsonReply(w, 200, map[string]string{"status": "ok"})
@@ -574,7 +587,7 @@ func (a *app) tvInit(w http.ResponseWriter, r *http.Request) {
 	g := a.games[id]
 	if g == nil {
 		id = token(16)
-		g = &game{ID: id, Drawn: []int{}, Theme: "space"}
+		g = &game{ID: id, Drawn: []int{}, Mode: "3x3", Theme: "space"}
 		a.games[id] = g
 	}
 	if !g.Paired && (g.Code == "" || time.Now().After(g.CodeExpires)) {
@@ -808,18 +821,19 @@ func (a *app) action(w http.ResponseWriter, r *http.Request) {
 	}
 	switch input.Type {
 	case "draw":
-		remaining := make([]int, 0, 30-len(g.Drawn))
+		limit := ballCount(gameMode(g))
+		remaining := make([]int, 0, limit-len(g.Drawn))
 		seen := map[int]bool{}
 		for _, n := range g.Drawn {
 			seen[n] = true
 		}
-		for n := 1; n <= 30; n++ {
+		for n := 1; n <= limit; n++ {
 			if !seen[n] {
 				remaining = append(remaining, n)
 			}
 		}
 		if len(remaining) == 0 {
-			bad(w, 409, "Ya salieron las 30 bolitas.")
+			bad(w, 409, fmt.Sprintf("Ya salieron las %d bolitas.", limit))
 			return
 		}
 		index, err := rand.Int(rand.Reader, bigInt(int64(len(remaining))))
@@ -837,6 +851,16 @@ func (a *app) action(w http.ResponseWriter, r *http.Request) {
 	case "reset":
 		g.Drawn = []int{}
 		g.Animation = animation{}
+	case "mode":
+		if !validMode(input.Value) {
+			bad(w, 400, "Modalidad desconocida")
+			return
+		}
+		if input.Value != gameMode(g) {
+			g.Drawn = []int{}
+			g.Animation = animation{}
+		}
+		g.Mode = input.Value
 	case "theme":
 		if input.Value != "space" && input.Value != "dino" && input.Value != "body" {
 			bad(w, 400, "Tema desconocido")
@@ -862,39 +886,9 @@ func (a *app) action(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, 200, g)
 }
 
-// La entrada se acota a 30; big.Int solo se usa para el sorteo seguro.
+// big.Int solo se usa para el sorteo seguro.
 func bigInt(n int64) *big.Int { return big.NewInt(n) }
 
-func (a *app) cards(w http.ResponseWriter, r *http.Request) {
-	if !a.require(w, r) {
-		return
-	}
-	count, err1 := strconv.Atoi(r.URL.Query().Get("count"))
-	seed, err2 := strconv.ParseUint(r.URL.Query().Get("seed"), 10, 32)
-	if err1 != nil || err2 != nil || count < 1 || count > 240 {
-		bad(w, 400, "Cantidad o semilla inválida")
-		return
-	}
-	format := "json"
-	if r.URL.Path == "/api/cards/pdf" {
-		format = "pdf"
-	}
-	cmd := exec.CommandContext(r.Context(), "python3", filepath.Join(a.rootDir, "compact_pdf.py"), "--count", strconv.Itoa(count), "--seed", strconv.FormatUint(seed, 10), "--format", format)
-	output, err := cmd.Output()
-	if err != nil {
-		log.Printf("Error del generador: %v", err)
-		bad(w, 500, "No se pudo generar el lote")
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	if format == "pdf" {
-		w.Header().Set("Content-Type", "application/pdf")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=cartones-bingo-%d.pdf", seed))
-	} else {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	}
-	_, _ = w.Write(output)
-}
 func (a *app) static(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.NotFound(w, r)

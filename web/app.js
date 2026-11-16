@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { CARDS_PER_PAGE, makeCards, modes, renderPdf } from "./cards.mjs";
 
 const root = document.getElementById("app");
 const themes = {
@@ -107,26 +108,28 @@ function toast(message, bad = false) {
 function errorText(node, error) {
   node.textContent = error.message || String(error);
 }
-function numberClass(n) {
-  return n <= 10 ? "b" : n <= 20 ? "i" : "n";
+function modeInfo(mode) { return modes[mode] || modes["3x3"]; }
+function numberClass(n, mode = "3x3") {
+  return modeInfo(mode).labels[Math.floor((n - 1) / modeInfo(mode).span)].toLowerCase();
 }
-function letter(n) {
-  return n <= 10 ? "B" : n <= 20 ? "I" : "N";
+function letter(n, mode = "3x3") {
+  return modeInfo(mode).labels[Math.floor((n - 1) / modeInfo(mode).span)];
 }
-function board(drawn, compact = false) {
+function board(drawn, mode = "3x3", compact = false) {
   const set = new Set(drawn);
-  const wrap = h("div", { class: `number-board ${compact ? "compact" : ""}` });
-  for (let col = 0; col < 3; col++) {
+  const info = modeInfo(mode);
+  const wrap = h("div", { class: `number-board mode-${mode || "3x3"} ${compact ? "compact" : ""}`, style: `--columns:${info.labels.length}` });
+  for (let col = 0; col < info.labels.length; col++) {
     const column = h(
       "div",
       { class: "number-column" },
-      h("div", { class: "column-head", text: "BIN"[col] }),
+      h("div", { class: "column-head", text: info.labels[col] }),
     );
-    for (let i = 1; i <= 10; i++) {
-      const n = col * 10 + i;
+    for (let i = 1; i <= info.span; i++) {
+      const n = col * info.span + i;
       column.append(
         h("div", {
-          class: `number-cell ${set.has(n) ? "drawn" : ""} ${numberClass(n)}`,
+          class: `number-cell ${set.has(n) ? "drawn" : ""} ${numberClass(n, mode)}`,
           text: n,
         }),
       );
@@ -162,7 +165,7 @@ function home() {
         ),
         h("a", { href: "/library/", class: "button quiet" }, "Crear cartones"),
       ),
-      h("small", {}, "3 × 3 · 30 bolitas · 12 cartones por hoja carta"),
+      h("small", {}, "3 × 3, 4 × 4 o 5 × 5 · cartones para imprimir"),
     ),
   );
 }
@@ -188,12 +191,15 @@ async function tv() {
     "🔈 Activar sonido",
   );
   const content = h("div", { class: "tv-content" });
+  const reveal = h("div", { class: "draw-reveal hidden", "aria-live": "polite" });
   const overlay = h("div", { class: "celebration hidden" });
-  shell.append(sound, content, overlay);
+  shell.append(sound, content, reveal, overlay);
   root.replaceChildren(shell);
-  function beep(win = false) {
+  let revealTimer, celebrationTimer;
+  function beep(kind = "draw") {
     if (!audioContext) return;
-    const notes = win ? [523, 659, 784, 1047] : [440, 660];
+    const notes = kind === "win" ? [523, 659, 784, 1047]
+      : kind === "draw" ? [392, 494, 587, 784] : [440, 660];
     notes.forEach((freq, i) => {
       const oscillator = audioContext.createOscillator(),
         gain = audioContext.createGain();
@@ -209,7 +215,31 @@ async function tv() {
       oscillator.stop(start + 0.24);
     });
   }
+  function showDraw(number) {
+    clearTimeout(revealTimer);
+    clearTimeout(celebrationTimer);
+    overlay.className = "celebration hidden";
+    const color = numberClass(number, game.mode);
+    reveal.replaceChildren(
+      h("div", { class: "draw-reveal-ring" }),
+      ...Array.from({ length: 12 }, (_, i) => h("i", {
+        class: "draw-spark",
+        style: `--angle:${i * 30}deg`,
+      })),
+      h("div", { class: "draw-reveal-kicker" }, "¡NUEVA BOLITA!"),
+      h("div", { class: "draw-reveal-ball" },
+        h("small", {}, letter(number, game.mode)), String(number)),
+      h("div", { class: "draw-reveal-count" },
+        `${game.drawn.length} DE ${modeInfo(game.mode).total} BOLITAS`),
+    );
+    reveal.className = `draw-reveal ${color}`;
+    beep("draw");
+    revealTimer = setTimeout(() => { reveal.className = "draw-reveal hidden"; }, 2200);
+  }
   function animate(type) {
+    clearTimeout(revealTimer);
+    clearTimeout(celebrationTimer);
+    reveal.className = "draw-reveal hidden";
     overlay.className = `celebration ${type}`;
     const win = type === "win";
     overlay.replaceChildren(
@@ -232,8 +262,8 @@ async function tv() {
             style: `--x:${Math.random() * 100}%;--delay:${Math.random() * 1.6}s;--hue:${Math.random() * 360}deg`,
           }),
         );
-    beep(win);
-    setTimeout(() => (overlay.className = "celebration hidden"), 5500);
+    beep(win ? "win" : "again");
+    celebrationTimer = setTimeout(() => (overlay.className = "celebration hidden"), 5500);
   }
   async function render() {
     shell.className = "tv-shell theme-" + game.theme;
@@ -272,7 +302,7 @@ async function tv() {
         { class: "tv-top" },
         h("div", { class: "tv-mark" }, "✦ BINGO FANTÁSTICO"),
         h("div", { class: "tv-theme" }, theme.icon + " " + theme.kicker),
-        h("div", { class: "tv-count" }, `${game.drawn.length} / 30`),
+        h("div", { class: "tv-count" }, `${(game.mode || "3x3").replace("x", " × ")} · ${game.drawn.length} / ${modeInfo(game.mode).total}`),
       ),
       h(
         "div",
@@ -286,9 +316,9 @@ async function tv() {
           }),
           h(
             "div",
-            { class: `hero-ball ${latest ? numberClass(latest) : "empty"}` },
+            { class: `hero-ball ${latest ? numberClass(latest, game.mode) : "empty"}` },
             latest
-              ? h("span", {}, h("small", {}, letter(latest)), String(latest))
+              ? h("span", {}, h("small", {}, letter(latest, game.mode)), String(latest))
               : theme.icon,
           ),
           h("p", { class: "tv-fact", text: fact }),
@@ -302,7 +332,7 @@ async function tv() {
               ...game.drawn
                 .slice(-7)
                 .reverse()
-                .map((n) => h("b", { class: numberClass(n), text: n })),
+                .map((n) => h("b", { class: numberClass(n, game.mode), text: n })),
             ),
           ),
         ),
@@ -310,8 +340,8 @@ async function tv() {
           "section",
           { class: "board-panel" },
           h("h2", {}, "Tablero de bolitas"),
-          board(game.drawn),
-          h("p", { class: "board-note" }, "B 1–10 · I 11–20 · N 21–30"),
+          board(game.drawn, game.mode),
+          h("p", { class: "board-note" }, [...modeInfo(game.mode).labels].map((label, i) => `${label} ${i * modeInfo(game.mode).span + 1}–${(i + 1) * modeInfo(game.mode).span}`).join(" · ")),
         ),
       ),
     );
@@ -327,8 +357,12 @@ async function tv() {
     previousDrawn = game.drawn.length;
     previousAnimation = game.animation?.id || 0;
     await render();
-    if (drew) beep();
+    if (drew) showDraw(game.drawn.at(-1));
     if (animationChanged) animate(game.animation.type);
+    if (!drew && !animationChanged && !game.drawn.length) {
+      clearTimeout(revealTimer);
+      reveal.className = "draw-reveal hidden";
+    }
   };
   source.onerror = () => {
     /* EventSource reconecta automáticamente. */
@@ -683,15 +717,17 @@ async function remote() {
       }
       const latest = game.drawn.at(-1),
         theme = themes[game.theme] || themes.space;
+      const mode = game.mode || "3x3";
+      const total = modeInfo(mode).total;
       const drawBtn = h(
         "button",
         {
           class: "draw-button",
           onclick: () => act("draw"),
-          disabled: game.drawn.length === 30,
+          disabled: game.drawn.length === total,
         },
         h("span", {}, "✦"),
-        game.drawn.length === 30 ? "SALIERON TODAS" : "SACAR BOLITA",
+        game.drawn.length === total ? "SALIERON TODAS" : "SACAR BOLITA",
         h("small", {}, "Sorteo aleatorio · sin repetir"),
       );
       const undo = h(
@@ -729,6 +765,17 @@ async function remote() {
           ),
         ),
       );
+      const modeSelect = h("select", {
+        onchange: (e) => {
+          if (game.drawn.length && !confirm("Cambiar de modalidad comenzará un sorteo nuevo. ¿Continuar?")) {
+            e.target.value = mode;
+            return;
+          }
+          act("mode", e.target.value);
+        },
+      }, ...Object.keys(modes).map((key) => h("option", {
+        value: key, ...(key === mode ? { selected: "" } : {}),
+      }, key.replace("x", " × "))));
       main.replaceChildren(
         h(
           "div",
@@ -745,18 +792,40 @@ async function remote() {
                 {},
                 h("span", {}, "Última bolita"),
                 h("strong", {
-                  text: latest ? `${letter(latest)} · ${latest}` : "—",
+                  text: latest ? `${letter(latest, mode)} · ${latest}` : "—",
                 }),
               ),
               h(
                 "div",
                 {},
                 h("span", {}, "Han salido"),
-                h("strong", { text: `${game.drawn.length} de 30` }),
+                h("strong", { text: `${game.drawn.length} de ${total}` }),
               ),
             ),
             drawBtn,
+            h(
+              "div",
+              { class: "moment-panel" },
+              h("div", { class: "section-kicker" }, "MOMENTOS ESPECIALES"),
+              h(
+                "div",
+                { class: "moment-actions" },
+                h(
+                  "button",
+                  { class: "button win", onclick: () => act("animation", "win") },
+                  "🏆 ¡Bingo!",
+                ),
+                h(
+                  "button",
+                  { class: "button again", onclick: () => act("animation", "try-again") },
+                  "🚀 Sigue jugando",
+                ),
+              ),
+              h("p", {}, "Tú decides cuándo alguien ganó."),
+            ),
             h("div", { class: "control-row" }, undo, reset),
+            h("div", { class: "theme-picker" }, h("label", {}, "Modalidad", modeSelect),
+              h("p", {}, "Usa cartones de la misma modalidad en esta partida.")),
             h(
               "div",
               { class: "theme-picker" },
@@ -772,48 +841,16 @@ async function remote() {
             "section",
             { class: "control-side" },
             h("div", { class: "section-kicker" }, "02 / TABLERO"),
-            board(game.drawn, true),
+            board(game.drawn, mode, true),
             h(
               "div",
               { class: "drawn-list" },
               h("span", {}, "Orden de salida"),
               h("p", {
                 text: game.drawn.length
-                  ? game.drawn.map((n) => `${letter(n)}${n}`).join(" · ")
+                  ? game.drawn.map((n) => `${letter(n, mode)}${n}`).join(" · ")
                   : "Aún no sale ninguna bolita.",
               }),
-            ),
-          ),
-        ),
-        h(
-          "section",
-          { class: "moment-panel" },
-          h(
-            "div",
-            {},
-            h("div", { class: "section-kicker" }, "03 / MOMENTOS ESPECIALES"),
-            h("h2", {}, "Haz que la TV celebre"),
-            h(
-              "p",
-              {},
-              "Tú decides cuándo alguien ganó. La aplicación no revisa cartones.",
-            ),
-          ),
-          h(
-            "div",
-            { class: "moment-actions" },
-            h(
-              "button",
-              { class: "button win", onclick: () => act("animation", "win") },
-              "🏆 ¡Bingo!",
-            ),
-            h(
-              "button",
-              {
-                class: "button again",
-                onclick: () => act("animation", "try-again"),
-              },
-              "🚀 Sigue jugando",
             ),
           ),
         ),
@@ -835,37 +872,16 @@ async function remote() {
   });
 }
 
-async function library() {
-  const me = await api("/api/auth/me");
+function library() {
   root.className = "app-page";
   const main = h("main", { class: "app-main" });
   root.replaceChildren(
     banner("Biblioteca de cartones", "Genera, revisa e imprime un lote nuevo."),
-    ...(me.authenticated
-      ? [
-          h(
-            "div",
-            { class: "account-bar" },
-            h("span", { text: `👤 ${me.user.username}` }),
-            h(
-              "button",
-              {
-                class: "button quiet",
-                onclick: async () => {
-                  await post("/api/auth/logout", {});
-                  await library();
-                },
-              },
-              "Salir",
-            ),
-          ),
-        ]
-      : []),
     main,
   );
-  let seed = Math.floor(Math.random() * 2 ** 32),
-    count = 12,
-    cards = [];
+  let objectUrl = null;
+  const modeInput = h("select", {}, ...Object.keys(modes).map((key) =>
+    h("option", { value: key }, key.replace("x", " × "))));
   const countInput = h("input", {
     type: "number",
     min: "1",
@@ -874,13 +890,19 @@ async function library() {
   });
   const feedback = h("p", { class: "form-error" });
   const preview = h("div", { class: "cards-preview" });
-  const seedText = h("code", { text: String(seed) });
   const download = h(
     "a",
     { class: "button primary disabled", href: "#", download: "" },
     "Descargar PDF carta ↓",
   );
-  function cardNode(card) {
+  function clearDownload() {
+    download.classList.add("disabled");
+    download.href = "#";
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = null;
+  }
+  function cardNode(card, mode) {
+    const labels = modeInfo(mode).labels;
     return h(
       "div",
       { class: "preview-card" },
@@ -890,40 +912,37 @@ async function library() {
       }),
       h(
         "div",
-        { class: "preview-grid" },
-        ...["B", "I", "N", ...card.grid.flat()].map((v) =>
-          h("span", { text: v }),
+        { class: "preview-grid", style: `--columns:${labels.length};--rows:${labels.length + 1}` },
+        ...[...labels, ...card.grid.flat()].map((v) =>
+          h("span", { text: v === null ? "★" : v, class: v === null ? "free-cell" : "", ...(v === null ? { title: "Casilla libre", "aria-label": "Casilla libre" } : {}) }),
         ),
       ),
     );
   }
-  async function generate() {
-    if (!me.authenticated) {
-      await login(async () => {
-        await library();
-      });
-      return;
-    }
-    count = Number(countInput.value);
+  function generate() {
+    clearDownload();
+    preview.replaceChildren();
+    const count = Number(countInput.value);
     if (!Number.isInteger(count) || count < 1 || count > 240) {
       feedback.textContent = "Elige entre 1 y 240 cartones.";
       return;
     }
-    seed = Math.floor(Math.random() * 2 ** 32);
-    seedText.textContent = String(seed);
     feedback.textContent = "Generando lote…";
-    download.classList.add("disabled");
     try {
-      const data = await api(`/api/cards/preview?count=${count}&seed=${seed}`);
-      cards = data.cards;
-      preview.replaceChildren(...cards.slice(0, 12).map(cardNode));
-      feedback.textContent = `${count} cartones únicos · ${Math.ceil(count / 12)} hoja${count > 12 ? "s" : ""} carta · vista previa de los primeros ${Math.min(count, 12)}.`;
-      download.href = `/api/cards/pdf?count=${count}&seed=${seed}`;
+      const mode = modeInput.value;
+      const cards = makeCards(count, mode);
+      const pdf = renderPdf(cards, mode);
+      preview.replaceChildren(...cards.slice(0, CARDS_PER_PAGE).map((card) => cardNode(card, mode)));
+      feedback.textContent = `${count} cartones únicos · ${Math.ceil(count / CARDS_PER_PAGE)} hoja${count > CARDS_PER_PAGE ? "s" : ""} carta · vista previa de los primeros ${Math.min(count, CARDS_PER_PAGE)}.`;
+      objectUrl = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+      download.href = objectUrl;
+      download.download = `cartones-bingo-${mode}.pdf`;
       download.classList.remove("disabled");
     } catch (ex) {
       errorText(feedback, ex);
     }
   }
+  modeInput.addEventListener("change", generate);
   main.replaceChildren(
     h(
       "div",
@@ -932,12 +951,13 @@ async function library() {
         "section",
         { class: "library-settings" },
         h("div", { class: "section-kicker" }, "01 / PREPARAR LOTE"),
-        h("h2", {}, "Cartones 3 × 3"),
+        h("h2", {}, "Cartones de bingo"),
         h(
           "p",
           {},
-          "Números del 1 al 30 en columnas B, I y N. Cada cartón es distinto dentro del lote.",
+          "3 × 3: 30 bolitas · 4 × 4: 60 bolitas · 5 × 5 clásico: 75 bolitas y centro libre. Cada cartón es distinto dentro del lote.",
         ),
+        h("label", {}, "Modalidad", modeInput),
         h("label", {}, "Cantidad de cartones", countInput),
         h(
           "button",
@@ -954,7 +974,6 @@ async function library() {
             "12 por hoja carta · 3 columnas × 4 filas · solo líneas y números negros · márgenes de corte.",
           ),
         ),
-        h("div", { class: "batch-seed" }, "Semilla del lote: ", seedText),
         download,
         feedback,
       ),
@@ -973,10 +992,7 @@ async function library() {
       h("a", { href: "/tv" }, "📺 Abrir TV"),
     ),
   );
-  if (me.authenticated) await generate();
-  else
-    feedback.textContent =
-      "La biblioteca es pública. Inicia sesión para generar el lote en el servidor.";
+  generate();
 }
 
 const path = location.pathname.replace(/\/$/, "");
@@ -989,7 +1005,5 @@ else if (path === "/remote")
     root.textContent = e.message;
   });
 else if (path === "/library")
-  library().catch((e) => {
-    root.textContent = e.message;
-  });
+  library();
 else home();

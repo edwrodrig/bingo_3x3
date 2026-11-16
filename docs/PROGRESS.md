@@ -1,5 +1,30 @@
 # Progreso
 
+## 2026-11-15 · Presentación del sorteo y control
+
+- Cada bolita nueva aparece en la TV con una revelación a pantalla completa,
+  destellos, color según su columna y una secuencia sonora cuando está activo
+  el sonido. El tablero vuelve a mostrarse al terminar la animación.
+- «¡Bingo!» y «Sigue jugando» aparecen junto a «Sacar bolita» en el control,
+  antes del tablero, para que se alcancen sin recorrer toda la página.
+
+## 2026-11-15 · Generación de cartones en el navegador
+
+- La biblioteca genera cartones 3×3, 4×4 y 5×5 y construye el PDF en JavaScript
+  a partir del mismo lote. No necesita cuenta ni llamadas al servidor.
+- Go conserva el sorteo y el estado de la partida; se retiraron los endpoints
+  de cartones y los scripts Python, junto con el generador CLI.
+- El despliegue ya no instala Python ni copia generadores al servidor.
+
+## 2026-11-15 · Modalidades 4×4 y 5×5
+
+- Sorteo por modalidad: 3×3 con 30, 4×4 con 60 y 5×5 con 75 bolitas.
+- El control permite cambiar de modalidad, iniciando un sorteo nuevo; la TV
+  muestra el tablero y los rangos correspondientes.
+- La biblioteca genera y previsualiza cartones de las tres modalidades y
+  conserva las 12 unidades por hoja carta en PDF. El 5×5 tiene centro libre.
+- Los lotes web identifican la modalidad en el formato JSON y el nombre del PDF.
+
 ## 2026-11-14 · Primera aplicación familiar
 
 - TV y control vinculados por QR o código temporal; control autenticado.

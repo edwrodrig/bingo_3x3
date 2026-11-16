@@ -1,119 +1,56 @@
-# Bingo Fantástico · juego y generador de cartones 3x3
+# Bingo Fantástico
 
-La aplicación web separa `/tv`, `/remote/` y `/library/`. La TV muestra la última
-bolita, el tablero completo, datos curiosos y animaciones. La TV es pública.
-El teléfono inicia sesión para dirigir un sorteo aleatorio sin repetición y
-puede deshacer, reiniciar, cambiar de tema
-o lanzar manualmente «¡Bingo!» y «Sigue jugando». La aplicación no registra ni
-comprueba los cartones que usan los jugadores.
+La aplicación separa `/tv`, `/remote/` y `/library/`. La TV muestra las bolitas,
+el tablero, datos curiosos y animaciones. El teléfono inicia sesión para dirigir
+un sorteo aleatorio sin repetición, deshacer, reiniciar, cambiar de tema o
+modalidad y lanzar manualmente «¡Bingo!» o «Sigue jugando». El sorteo y su
+estado se guardan en el servidor. La aplicación no comprueba los cartones de
+los jugadores.
 
-`/library/` se puede abrir sin cuenta, pero requiere inicio de sesión para
-generar lotes porque el generador Python se ejecuta en el servidor. Previsualiza
-los primeros 12 cartones y descarga un PDF vectorial
-en blanco y negro, tamaño carta, con 3 columnas × 4 filas. Cada lote conserva
-una semilla numérica en el nombre del PDF; la misma semilla y cantidad producen
-los mismos cartones. El generador CLI original y su plantilla SVG siguen
-disponibles como se explica más abajo.
+La biblioteca es pública. Genera en el navegador cartones distintos y un PDF
+vectorial en blanco y negro, tamaño carta, con 12 cartones por hoja. La vista
+previa y el PDF usan el mismo lote. Los cartones y el PDF no se envían al
+servidor; no se necesita Python ni inicio de sesión para crearlos.
 
-## Ejecutar la aplicación localmente
+## Modalidades
 
-Requiere Go 1.26+, Node 20+ y Python 3.10+. No se necesitan Inkscape ni
-`pdfunite` para el PDF compacto de la aplicación.
+| Modalidad | Columnas y rangos | Bolitas | Centro libre |
+| --- | --- | ---: | --- |
+| 3×3 | B 1–10, I 11–20, N 21–30 | 30 | No |
+| 4×4 | B 1–15, I 16–30, N 31–45, G 46–60 | 60 | No |
+| 5×5 clásico | B 1–15, I 16–30, N 31–45, G 46–60, O 61–75 | 75 | Sí |
+
+Elige la misma modalidad en el control y en la biblioteca. Cambiarla en el
+control comienza un sorteo nuevo.
+
+## Ejecutar localmente
+
+Requiere Go 1.26+ y Node 20+.
 
 ```bash
 npm ci
 npm run build
 mkdir -p .local/data
-python3 -c 'import os,pathlib,secrets; p=pathlib.Path(".local/bingo-owner-password"); p.write_text(secrets.token_urlsafe(32)+"\n") if not p.exists() else None; os.chmod(p,0o600)'
+node -e 'const fs=require("node:fs"),crypto=require("node:crypto"),p=".local/bingo-owner-password"; if(!fs.existsSync(p)) fs.writeFileSync(p,crypto.randomBytes(32).toString("base64url")+"\n",{flag:"wx",mode:0o600})'
 BINGO_DATA_DIR=.local/data go run ./server owner bootstrap bingo < .local/bingo-owner-password
 BINGO_DATA_DIR=.local/data go run ./server
 ```
 
-Abre `http://127.0.0.1:3012/tv` en la pantalla y
-`http://127.0.0.1:3012/remote/` en el teléfono. Ambos necesitan acceder al
-mismo servidor. Inicia sesión en el teléfono con la contraseña guardada en
-`.local/bingo-owner-password` y el usuario `bingo`, escanea el QR o escribe el código de la TV.
-El administrador puede crear otras cuentas, desactivarlas y cambiar sus claves
-desde «Gestionar usuarios» en el control. Cada cuenta vincula sus propias TV;
-los cartones se pueden generar con cualquier cuenta activa. Bingo no comparte
-usuarios ni contraseñas con Dance Trainer. La primera versión de Bingo migra
-automáticamente su contraseña única al usuario `bingo`.
-Los datos y la contraseña local están fuera de Git. `npm test` comprueba el
-sorteo y el PDF; `npm run build` genera los archivos web.
+Abre `http://127.0.0.1:3012/tv` en la pantalla,
+`http://127.0.0.1:3012/remote/` en el teléfono y
+`http://127.0.0.1:3012/library/` para crear cartones. La TV y el teléfono
+deben acceder al mismo servidor. Inicia sesión en el teléfono con el usuario
+`bingo` y la contraseña guardada en `.local/bingo-owner-password`; vincula la
+TV mediante el QR o su código. El administrador puede crear otras cuentas,
+desactivarlas y cambiar sus claves desde el control. Cada cuenta vincula sus
+propias TV. Los datos y la contraseña local están fuera de Git.
+
+`npm test` comprueba el sorteo, los cartones y el PDF. `npm run build` genera
+los archivos web.
 
 ## Producción
 
 La aplicación está publicada en `https://bingo.labo86.cl`, aislada de Dance
-Trainer en `dti_Server`. `bash scripts/deploy-dti.sh` construye, prueba, respalda
-datos existentes y publica Go detrás de nginx/TLS. En la primera instalación
-crea `.local/bingo-owner-password` con permisos `600` y usa esa contraseña para
-iniciar la cuenta `bingo` del control. Consulta [despliegue](docs/DEPLOYMENT.md).
-
-## Ampliaciones previstas
-
-El sorteo y los cartones actuales usan el contrato `bingo_3x3_v1`: B 1–10,
-I 11–20, N 21–30. Las pantallas y el PDF consumen los datos del lote; las
-reglas viven en el generador. Para añadir 4×4, 5×5, sílabas o dibujos hará
-falta versionar un formato de cartón nuevo y añadir su presentación e impresión.
-Los temas de TV son independientes de las reglas y se pueden ampliar con
-nuevos datos e ilustraciones.
-
-## Reglas
-
-- Columna B: 1 al 10
-- Columna I: 11 al 20
-- Columna N: 21 al 30
-- Cartón de 3 x 3
-- Números aleatorios sin repetirse dentro de cada columna
-- Cartones no duplicados dentro del lote
-- Salida en SVG editable y PDF tamaño carta
-
-## Uso básico
-
-```bash
-python bingo_generator.py --cantidad 40 --seed 1234 --out salida_bingo
-```
-
-Esto genera:
-
-- `salida_bingo/cartones.json`: datos del lote
-- `salida_bingo/svgs/`: un SVG por cartón
-- `salida_bingo/cartones_bingo.pdf`: PDF carta, un cartón por página
-
-## Regenerar el mismo lote sin cambiar los números
-
-```bash
-python bingo_generator.py --data salida_bingo/cartones.json --out salida_regenerada
-```
-
-## Generar fichas del sorteo
-
-```bash
-python sorteo_generator.py --out salida_sorteo
-```
-
-Esto genera:
-
-- `salida_sorteo/svgs/`: un SVG por hoja A4
-- `salida_sorteo/fichas_sorteo_a4.pdf`: PDF con las 30 fichas recortables
-
-Las fichas del sorteo se generan de forma independiente a los cartones, en 3 hojas A4 con piezas grandes y bordes rectos para facilitar el corte.
-
-## Modificar diseño
-
-Edita `bingo_template.svg`.
-
-No elimines estos placeholders si quieres que el programa siga funcionando:
-
-- `{{CARD_ID}}`
-- `{{B00}}`, `{{B01}}`, `{{B02}}`
-- `{{B10}}`, `{{B11}}`, `{{B12}}`
-- `{{B20}}`, `{{B21}}`, `{{B22}}`
-
-## Instalar dependencias
-
-```bash
-sudo apt install inkscape poppler-utils
-```
-
-El PDF final se arma exportando cada SVG con Inkscape y uniendo las paginas con `pdfunite`.
+Trainer en `dti_Server`. `bash scripts/deploy-dti.sh` construye, prueba,
+respalda los datos existentes y publica Go detrás de nginx/TLS. Consulta la
+[guía de despliegue](docs/DEPLOYMENT.md).

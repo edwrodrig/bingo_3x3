@@ -53,6 +53,35 @@ func TestDrawUndoResetAndAnimation(t *testing.T) {
 	if status, g := call("reset", ""); status != 200 || len(g.Drawn) != 0 {
 		t.Fatal("nueva partida falló")
 	}
+	if status, _ := call("mode", "6x6"); status != 400 {
+		t.Fatal("se aceptó una modalidad inválida")
+	}
+	for _, tc := range []struct {
+		mode  string
+		total int
+	}{{"4x4", 60}, {"5x5", 75}} {
+		if status, g := call("mode", tc.mode); status != 200 || g.Mode != tc.mode || len(g.Drawn) != 0 {
+			t.Fatalf("cambio a %s falló", tc.mode)
+		}
+		seen := map[int]bool{}
+		for i := 0; i < tc.total; i++ {
+			status, g := call("draw", "")
+			if status != 200 || len(g.Drawn) != i+1 {
+				t.Fatalf("sorteo %s: HTTP %d", tc.mode, status)
+			}
+			n := g.Drawn[i]
+			if n < 1 || n > tc.total || seen[n] {
+				t.Fatalf("bolita inválida en %s: %d", tc.mode, n)
+			}
+			seen[n] = true
+		}
+		if status, _ := call("draw", ""); status != 409 {
+			t.Fatalf("no se agotó %s", tc.mode)
+		}
+	}
+	if status, g := call("mode", "3x3"); status != 200 || g.Mode != "3x3" || len(g.Drawn) != 0 {
+		t.Fatal("cambio de modalidad no inició un sorteo nuevo")
+	}
 	persisted, err := os.ReadFile(filepath.Join(a.dataDir, "games.json"))
 	if err != nil || !bytes.Contains(persisted, []byte(`"drawn": []`)) {
 		t.Fatal("el reinicio no quedó guardado")

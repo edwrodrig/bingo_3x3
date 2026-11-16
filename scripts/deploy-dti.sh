@@ -16,8 +16,8 @@ fi
 ssh_bingo() { ssh "${SSH_OPTS[@]}" "$REMOTE" "$@"; }
 
 [[ "$PORT" =~ ^[0-9]{4,5}$ ]] || { echo 'BINGO_PORT inválido' >&2; exit 1; }
-for cmd in go npm python3 rsync ssh dig curl; do command -v "$cmd" >/dev/null; done
-ssh_bingo 'set -e; sudo -n true; command -v nginx; command -v certbot; command -v python3; command -v rsync; command -v systemctl; test "$(uname -s)" = Linux' >/dev/null
+for cmd in go npm node rsync ssh dig curl; do command -v "$cmd" >/dev/null; done
+ssh_bingo 'set -e; sudo -n true; command -v nginx; command -v certbot; command -v rsync; command -v systemctl; test "$(uname -s)" = Linux' >/dev/null
 [[ "$(ssh_bingo 'uname -m')" == x86_64 ]] || { echo 'Se esperaba dti_Server x86_64' >&2; exit 1; }
 ssh_bingo "if ss -ltn | grep -qE '[:.]${PORT}[[:space:]]'; then systemctl is-active --quiet bingo.service || { echo 'Puerto ${PORT} ocupado' >&2; exit 1; }; fi"
 
@@ -30,7 +30,6 @@ trap 'rm -rf "$STAGE"' EXIT
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$STAGE/bingo-server" ./server
 mkdir -p "$STAGE/dist"
 cp -R dist/. "$STAGE/dist/"
-cp bingo_generator.py compact_pdf.py "$STAGE/"
 
 RELEASE="$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM"
 ssh_bingo "sudo install -d -o '$USER' -g '$USER' -m 0750 /srv/bingo /srv/bingo/releases /srv/bingo/data; mkdir -p '/srv/bingo/releases/$RELEASE'"
@@ -47,13 +46,7 @@ fi
 if ! ssh_bingo 'test -f /srv/bingo/data/users.json || test -f /srv/bingo/data/owner.hash'; then
   PASSWORD_FILE="$ROOT/.local/bingo-owner-password"
   if [[ ! -f "$PASSWORD_FILE" ]]; then
-    python3 - "$PASSWORD_FILE" <<'PY'
-import os, pathlib, secrets, sys
-p = pathlib.Path(sys.argv[1])
-fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-with os.fdopen(fd, 'w') as f:
-    f.write(secrets.token_urlsafe(32) + '\n')
-PY
+    node -e 'const fs = require("node:fs"); const crypto = require("node:crypto"); fs.writeFileSync(process.argv[1], crypto.randomBytes(32).toString("base64url") + "\n", { flag: "wx", mode: 0o600 });' "$PASSWORD_FILE"
   fi
   [[ "$(stat -f %Lp "$PASSWORD_FILE" 2>/dev/null || stat -c %a "$PASSWORD_FILE")" == 600 ]] || { echo 'La contraseña local debe tener permisos 600' >&2; exit 1; }
   ssh "${SSH_OPTS[@]}" "$REMOTE" "BINGO_DATA_DIR=/srv/bingo/data /srv/bingo/releases/$RELEASE/bingo-server owner bootstrap bingo" < "$PASSWORD_FILE"
@@ -85,7 +78,6 @@ Environment=PORT=$port
 Environment=BINGO_BIND=127.0.0.1
 Environment=BINGO_DATA_DIR=/srv/bingo/data
 Environment=BINGO_DIST_DIR=/srv/bingo/current/dist
-Environment=BINGO_ROOT_DIR=/srv/bingo/current
 Environment=BINGO_SECURE_COOKIES=1
 ExecStart=/srv/bingo/current/bingo-server
 Restart=always

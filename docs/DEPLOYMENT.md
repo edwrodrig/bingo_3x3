@@ -13,7 +13,8 @@ estricta de host. Se puede indicar `BINGO_SSH_KEY` o `BINGO_SSH_PUBKEY` si el
 agente SSH no selecciona la clave adecuada. También admite `BINGO_CERT_EMAIL`.
 Antes de activar un nuevo release, guarda un respaldo de `/srv/bingo/data` en
 `.local/backups/`. Conserva los juegos y las cuentas en `/srv/bingo/data`.
-El release contiene el binario Go, la web compilada y el generador Python.
+El release contiene el binario Go y la web compilada. Los cartones y el PDF se
+generan en el navegador.
 
 La contraseña inicial del administrador `bingo` queda solo en
 `.local/bingo-owner-password`, ignorada por Git. El servidor conserva los

@@ -259,6 +259,7 @@ p {
 .login-card input,
 .pair-form input,
 .library-settings input,
+.library-settings select,
 .theme-picker select {
   width: 100%;
   background: #101630;
@@ -271,6 +272,7 @@ p {
 .login-card input:focus,
 .pair-form input:focus,
 .library-settings input:focus,
+.library-settings select:focus,
 .theme-picker select:focus {
   border-color: #ffdb73;
   box-shadow: 0 0 0 3px #ffdb7330;
@@ -304,6 +306,8 @@ p {
 .library-preview {
   padding: 25px;
 }
+.control-main,
+.control-side { min-width: 0; }
 .remote-status {
   display: flex;
   justify-content: space-between;
@@ -313,6 +317,7 @@ p {
 .remote-status div {
   display: grid;
   gap: 0.2rem;
+  min-width: 0;
 }
 .remote-status span,
 .drawn-list span {
@@ -382,7 +387,7 @@ p {
 }
 .number-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr));
   gap: 11px;
 }
 .number-column {
@@ -390,6 +395,14 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
 }
+.number-board.mode-4x4 .number-column,
+.number-board.mode-5x5 .number-column {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.number-board.mode-4x4 .number-cell,
+.number-board.mode-5x5 .number-cell { font-size: 0.8rem; }
+.number-board.mode-5x5 .number-column { gap: 2px; }
+.number-board.mode-5x5 .number-cell { font-size: 0.7rem; }
 .column-head {
   grid-column: 1/-1;
   text-align: center;
@@ -429,6 +442,12 @@ p {
 .number-cell.drawn.n {
   background: #f9a7c7;
 }
+.number-cell.drawn.g, .history b.g {
+  background: #b6d28b;
+}
+.number-cell.drawn.o, .history b.o {
+  background: #c9b4ff;
+}
 .drawn-list {
   border-top: 1px solid #ffffff25;
   margin-top: 17px;
@@ -440,24 +459,30 @@ p {
   line-height: 1.8;
 }
 .moment-panel {
-  padding: 25px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-top: 20px;
-}
-.moment-panel h2 {
-  margin: 0.5rem 0;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  background: #121a37;
+  border-radius: 18px;
+  box-shadow: none;
 }
 .moment-panel p {
   color: #b6bdd7;
   margin: 0;
+  font-size: 0.78rem;
 }
 .moment-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.moment-actions .button {
+  min-width: 0;
+  padding: 0.75rem 0.35rem;
+  font-size: clamp(0.72rem, 2.7vw, 1rem);
+  white-space: normal;
+  line-height: 1.15;
 }
 .bottom-nav {
   display: flex;
@@ -518,13 +543,6 @@ p {
   font-size: 0.86rem;
   margin-top: 0.4rem;
 }
-.batch-seed {
-  font-size: 0.84rem;
-  color: #aeb9d8;
-}
-.batch-seed code {
-  color: #fff;
-}
 .cards-preview {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -549,8 +567,8 @@ p {
 }
 .preview-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--columns, 3), 1fr);
+  grid-template-rows: repeat(var(--rows, 4), 1fr);
   flex: 1;
   border-top: 1px solid #777;
   border-left: 1px solid #777;
@@ -560,12 +578,14 @@ p {
   border-bottom: 1px solid #777;
   display: grid;
   place-items: center;
-  font-size: clamp(0.75rem, 1.8vw, 1.5rem);
+  font-size: clamp(0.65rem, 1.5vw, 1.35rem);
   font-weight: 700;
 }
-.preview-grid span:nth-child(-n + 3) {
+.preview-grid span:nth-child(-n + 5), .preview-grid span.free-cell {
   font-size: 0.8rem;
 }
+.preview-grid span.free-cell { background: #eee; }
+.preview-grid[style*="--columns:5"] span.free-cell { font-size: 1rem; }
 
 .tv {
   height: 100vh;
@@ -674,6 +694,12 @@ p {
 .hero-ball.n {
   background: radial-gradient(circle at 32% 27%, #fff, #ffadc6 48%, #b6598c);
 }
+.hero-ball.g {
+  background: radial-gradient(circle at 32% 27%, #fff, #b6d28b 48%, #709247);
+}
+.hero-ball.o {
+  background: radial-gradient(circle at 32% 27%, #fff, #c9b4ff 48%, #7656b3);
+}
 .hero-ball.empty {
   font-size: clamp(5rem, 10vw, 8rem);
 }
@@ -757,6 +783,10 @@ p {
   min-height: 0;
   font-size: clamp(1.1rem, 2vw, 2.5rem);
 }
+.board-panel .number-board.mode-4x4 .number-cell,
+.board-panel .number-board.mode-5x5 .number-cell {
+  font-size: clamp(0.85rem, 1.4vw, 1.6rem);
+}
 .board-panel .column-head {
   font-size: clamp(1.1rem, 1.8vw, 2rem);
 }
@@ -777,6 +807,106 @@ p {
   border-radius: 999px;
   padding: 0.4rem 0.7rem;
   font-size: 0.75rem;
+}
+.draw-reveal {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  overflow: hidden;
+  background: radial-gradient(circle, #44377be8, #0a1029f2 75%);
+  color: #fff;
+  --reveal-light: #ffde83;
+  --reveal-mid: #ffb655;
+  --reveal-dark: #c76c47;
+  animation: fadein 0.2s ease-out;
+}
+.draw-reveal.hidden { display: none; }
+.draw-reveal.i { --reveal-light: #d4fffb; --reveal-mid: #7fe3d7; --reveal-dark: #278f9a; }
+.draw-reveal.n { --reveal-light: #ffe1ea; --reveal-mid: #f9a7c7; --reveal-dark: #ab578b; }
+.draw-reveal.g { --reveal-light: #edffd3; --reveal-mid: #b6d28b; --reveal-dark: #648a4c; }
+.draw-reveal.o { --reveal-light: #f0e7ff; --reveal-mid: #c9b4ff; --reveal-dark: #7455ae; }
+.draw-reveal-ring {
+  position: absolute;
+  width: min(59vw, 69vh);
+  aspect-ratio: 1;
+  border: 4px dashed #ffffff88;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2vh #ffffff13, 0 0 0 5vh #ffffff09;
+  animation: reveal-ring 2.2s ease-out both;
+}
+.draw-reveal-kicker,
+.draw-reveal-count {
+  z-index: 1;
+  font-family: "Fredoka";
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-shadow: 0 4px 20px #000a;
+}
+.draw-reveal-kicker {
+  color: #ffe48a;
+  font-size: clamp(1.6rem, 4vw, 4rem);
+  animation: reveal-caption 0.6s ease-out both;
+}
+.draw-reveal-count {
+  font-size: clamp(1rem, 2.2vw, 2rem);
+  animation: reveal-caption 0.8s 0.2s ease-out both;
+}
+.draw-reveal-ball {
+  z-index: 1;
+  width: min(43vw, 48vh);
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 25%, #fff, var(--reveal-light) 24%, var(--reveal-mid) 58%, var(--reveal-dark));
+  box-shadow: inset -20px -28px 32px #4a234755, 0 24px 70px #0009, 0 0 80px var(--reveal-mid);
+  color: #20233c;
+  font-family: "Fredoka";
+  font-size: clamp(5rem, 15vw, 12rem);
+  font-weight: 700;
+  line-height: 0.8;
+  text-shadow: 0 3px 0 #fff8;
+  animation: reveal-ball 0.85s cubic-bezier(0.18, 1.3, 0.35, 1) both;
+}
+.draw-reveal-ball small {
+  font-size: 0.28em;
+  margin-bottom: 0.25em;
+}
+.draw-spark {
+  position: absolute;
+  left: calc(50% - 6px);
+  top: calc(50% - 18px);
+  width: 12px;
+  height: 36px;
+  border-radius: 99px;
+  background: var(--reveal-light);
+  box-shadow: 0 0 18px var(--reveal-mid);
+  animation: reveal-spark 1.3s 0.15s ease-out both;
+}
+@keyframes reveal-ball {
+  from { transform: translateY(-24vh) scale(0.2) rotate(-24deg); opacity: 0; }
+  to { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+}
+@keyframes reveal-ring {
+  from { transform: scale(0.25) rotate(-35deg); opacity: 0; }
+  40% { opacity: 1; }
+  to { transform: scale(1.15) rotate(35deg); opacity: 0.5; }
+}
+@keyframes reveal-spark {
+  from { transform: rotate(var(--angle)) translateY(-6vh) scale(0.2); opacity: 0; }
+  35% { opacity: 1; }
+  to { transform: rotate(var(--angle)) translateY(-36vh) scale(0.7); opacity: 0; }
+}
+@keyframes reveal-caption {
+  from { transform: translateY(1.5rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 .pair-screen {
   height: 100%;
@@ -983,10 +1113,6 @@ p {
   .library-layout {
     grid-template-columns: 1fr;
   }
-  .moment-panel {
-    align-items: stretch;
-    flex-direction: column;
-  }
   .number-board.compact .number-cell {
     aspect-ratio: 1.6;
   }
@@ -1025,10 +1151,14 @@ p {
   .control-main,
   .control-side,
   .library-settings,
-  .library-preview,
-  .moment-panel {
+  .library-preview {
     padding: 18px;
   }
+  .moment-panel { padding: 14px; }
+  .remote-status { margin: 12px 0; }
+  .remote-status strong { font-size: 1.8rem; }
+  .draw-button { padding: 16px 10px; font-size: 1.8rem; border-radius: 18px; }
+  .draw-button span { font-size: 2rem; line-height: 1; }
   .cards-preview {
     gap: 4px;
   }
